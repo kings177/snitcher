@@ -15,10 +15,10 @@ class FaceSystem:
                 self.implementation = HailoFaceSystem(known_faces_dir, tolerance)
             except ImportError as e:
                 logger.error(f"Failed to import Hailo system: {e}. Falling back to CPU.")
-                self.use_hailo = True
+                self.use_hailo = False
             except Exception as e:
                 logger.error(f"Failed to initialize Hailo system: {e}. Falling back to CPU.")
-                self.use_hailo = True
+                self.use_hailo = False
 
         if not self.use_hailo:
             from .face_system_cpu import FaceSystemCPU
@@ -26,10 +26,17 @@ class FaceSystem:
             self.implementation = FaceSystemCPU(known_faces_dir, tolerance)
 
     def process_frame(self, frame):
+        if self.implementation is None:
+            logger.error("No face system implementation loaded!")
+            return []
         return self.implementation.process_frame(frame)
 
     def save_face(self, frame, location, name):
+        if self.implementation is None:
+            return False
         return self.implementation.save_face(frame, location, name)
 
     def load_known_faces(self):
+        if self.implementation is None:
+            return
         return self.implementation.load_known_faces()

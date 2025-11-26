@@ -3,4 +3,10 @@ __pycache__/
 .env
 .DS_Store
 output/
+known_faces/*.jpg
+known_faces/*.jpeg
+known_faces/*.png
+known_faces/*.pkl
+models/*.hef
+test_capture.jpg
 
