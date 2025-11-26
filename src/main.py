@@ -77,13 +77,13 @@ def main():
 
             # Update monitor
             if monitor.update(has_unknown):
-                logger.info("ALARM! Sending notification.")
-                notifier.send_alert(frame, "⚠️ Intruder Detected! ⚠️")
+                logger.info("Sending discord notification.")
+                notifier.send_alert(frame, "Detected Unknown Person")
 
             # Display (if possible)
             # You can disable this on headless systems
             try:
-                cv2.imshow("Snitcher Feed", frame)
+                cv2.imshow("Snitcher Camera Feed", frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
             except (cv2.error, AttributeError):

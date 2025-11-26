@@ -27,8 +27,9 @@ A face recognition security system for Raspberry Pi 5 + Hailo-8.
 
 3. **Add Known Faces**
    Add images of known people to the `known_faces/` directory.
-   - `known_faces/michiru.jpg`
-   - `known_faces/mom.png`
+   - `known_faces/myself.jpg`
+   - `known_faces/cleber.png`
+   - `known_faces/cleiton.png`
 
 4. **Run**
    ```bash

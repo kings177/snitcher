@@ -22,18 +22,18 @@ class LoiteringMonitor:
             self.last_seen = now
             if self.first_seen is None:
                 self.first_seen = now
-                logger.info("Unknown face detected. Starting timer.")
+                logger.info("Unknown Person detected. Starting timer.")
 
             duration = now - self.first_seen
             
             if duration > self.threshold and not self.triggered:
-                logger.info(f"Loitering detected! Duration: {duration:.2f}s")
+                logger.info(f"Unknown Person was detected in frame for more than {duration:.2f}s. Triggering alert.")
                 self.triggered = True
                 return True
         else:
             if self.first_seen is not None:
                 if (now - self.last_seen) > self.grace_period:
-                    logger.info("Unknown face lost. Resetting timer.")
+                    logger.info("Unknown Person lost. Resetting timer. No alert triggered.")
                     self.first_seen = None
                     self.triggered = False
         

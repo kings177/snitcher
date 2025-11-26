@@ -94,11 +94,11 @@ class WebStreamer:
         return render_template_string("""
             <html>
             <head>
-                <title>Snitcher Live View</title>
+                <title>Camera Live View</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
                     body { background: #111; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
-                    .container { max-width: 800px; margin: 0 auto; }
+                    .container { max-width: 1200px; margin: 0 auto; }
                     img { border: 2px solid #444; max-width: 100%; height: auto; margin-bottom: 20px; }
                     .controls { background: #222; padding: 20px; border-radius: 8px; margin-top: 20px; }
                     input[type="text"] { padding: 10px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; }

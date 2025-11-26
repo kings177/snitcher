@@ -2,12 +2,8 @@ import os
 import requests
 import logging
 
-# URLs for common Hailo models (these links might need updating as Hailo Model Zoo evolves)
-# Using generic placeholders or known GitHub releases if available.
-# Since I cannot guarantee permanent URLs, I will point to the official Model Zoo.
-
 MODELS = {
-    "scrfd_2.5g_640x640.hef": "https://hailo-model-zoo.s3.eu-west-2.amazonaws.com/ModelZoo/Compiled/v2.11.0/hailo8/scrfd_2.5g.hef", # This is a guess, usually they are tar.gz
+    "scrfd_2.5g_640x640.hef": "https://hailo-model-zoo.s3.eu-west-2.amazonaws.com/ModelZoo/Compiled/v2.11.0/hailo8/scrfd_2.5g.hef",
     "arcface_mobilefacenet.hef": "https://hailo-model-zoo.s3.eu-west-2.amazonaws.com/ModelZoo/Compiled/v2.11.0/hailo8/arcface_mobilefacenet.hef"
 }
 

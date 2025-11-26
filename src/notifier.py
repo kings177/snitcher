@@ -12,7 +12,7 @@ class DiscordNotifier:
         self.last_notification_time = 0
         self.cooldown = 60  # Seconds between notifications
 
-    def send_alert(self, image, message="Unknown person detected!"):
+    def send_alert(self, image, message="Unknown Person Detected in Frame"):
         if not self.webhook_url:
             logger.warning("No Discord Webhook URL configured.")
             return
@@ -21,7 +21,7 @@ class DiscordNotifier:
             logger.info("Notification cooldown active. Skipping.")
             return
 
-        logger.info("Sending Discord notification...")
+        logger.info("Sending Discord notification. Alert message: " + message)
         
         # Encode image to jpg
         success, encoded_image = cv2.imencode('.jpg', image)
@@ -41,7 +41,7 @@ class DiscordNotifier:
         try:
             response = requests.post(self.webhook_url, data=data, files=files)
             if response.status_code == 200 or response.status_code == 204:
-                logger.info("Discord notification sent successfully.")
+                logger.info("Discord notification sent successfully. Alert message: " + message)
                 self.last_notification_time = time.time()
             else:
                 logger.error(f"Failed to send Discord notification: {response.status_code} {response.text}")
