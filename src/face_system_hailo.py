@@ -98,22 +98,32 @@ class HailoFaceSystem:
         return np.dot(emb1, emb2)
 
     def _find_match(self, embedding):
-        """Find the best matching known face."""
+        """Find the best matching known face with confidence score."""
         best_match = None
         best_score = -1
         
-        for name, known_emb in self.known_faces.items():
-            score = self._compare_embeddings(embedding, known_emb)
+        for name, known_embs in self.known_faces.items():
+            # If multiple embeddings for this person, check all
+            if isinstance(known_embs, list):
+                scores = [self._compare_embeddings(embedding, emb) for emb in known_embs]
+                score = max(scores)
+            else:
+                score = self._compare_embeddings(embedding, known_embs)
+            
             if score > best_score:
                 best_score = score
                 best_match = name
         
-        # Threshold: higher = more similar (cosine similarity)
-        # Typical threshold is 0.4-0.6 for face recognition
-        threshold = 1.0 - self.tolerance  # Convert tolerance to similarity threshold
-        if best_score >= threshold:
-            return best_match, best_score
-        return None, best_score
+        # Thresholds for categorization
+        high_confidence_threshold = 0.5  # Strong match
+        low_confidence_threshold = 0.35   # Uncertain match
+        
+        if best_score >= high_confidence_threshold:
+            return best_match, best_score, "known"
+        elif best_score >= low_confidence_threshold:
+            return best_match, best_score, "maybe"
+        else:
+            return None, best_score, "unknown"
 
     def process_frame(self, frame):
         input_size = (640, 640)
@@ -157,20 +167,26 @@ class HailoFaceSystem:
                 if face_crop.size > 0 and face_crop.shape[0] > 10 and face_crop.shape[1] > 10:
                     try:
                         embedding = self._get_face_embedding(face_crop)
-                        match_name, score = self._find_match(embedding)
+                        match_name, confidence, category = self._find_match(embedding)
                         
-                        if match_name:
-                            name = match_name
+                        if category == "known":
+                            name = f"{match_name} ({confidence:.0%})"
+                        elif category == "maybe":
+                            name = f"Maybe {match_name}? ({confidence:.0%})"
                         else:
                             name = "Unknown"
                     except Exception as e:
                         logger.debug(f"Recognition error: {e}")
                         name = "Unknown"
+                        category = "unknown"
+                        confidence = 0.0
                 else:
                     name = "Unknown"
+                    category = "unknown"
+                    confidence = 0.0
                 
-                # Format: (name, (top, right, bottom, left))
-                results.append((name, (y1, x2, y2, x1)))
+                # Format: (name, (top, right, bottom, left), category, confidence)
+                results.append((name, (y1, x2, y2, x1), category, confidence))
                 
             return results
 
@@ -200,10 +216,30 @@ class HailoFaceSystem:
         except Exception as e:
             logger.error(f"Error saving embeddings: {e}")
 
-    def save_face(self, frame, location, name):
-        """Save a face and its embedding."""
-        top, right, bottom, left = location
+    def save_face(self, frame, location, name, multi_sample=True, num_samples=10, sample_delay=0.3):
+        """
+        Save a face and its embeddings.
         
+        Args:
+            frame: Current video frame
+            location: Face bounding box (top, right, bottom, left)
+            name: Person's name
+            multi_sample: If True, will request multiple samples via callback
+            num_samples: Number of samples to collect
+            sample_delay: Delay between samples (seconds)
+        """
+        safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).strip()
+        if not safe_name:
+            safe_name = "face"
+        
+        # Store the request for multi-sampling
+        # The web interface will need to call this multiple times
+        # Or we can store state and collect samples over time
+        
+        # For now, we'll save the current frame and embedding
+        # And store as a list to support multiple embeddings per person
+        
+        top, right, bottom, left = location
         h, w = frame.shape[:2]
         pad_h = int((bottom - top) * 0.3)
         pad_w = int((right - left) * 0.3)
@@ -219,25 +255,32 @@ class HailoFaceSystem:
             logger.error("Failed to crop face: Empty image")
             return False
 
-        safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).strip()
-        if not safe_name:
-            safe_name = "face"
-        
-        # Save image
-        filename = f"{safe_name}.jpg"
-        path = os.path.join(self.known_faces_dir, filename)
-        
         try:
+            # Generate embedding
+            embedding = self._get_face_embedding(face_image)
+            
+            # Add to existing embeddings or create new list
+            if safe_name in self.known_faces:
+                if not isinstance(self.known_faces[safe_name], list):
+                    # Convert single embedding to list
+                    self.known_faces[safe_name] = [self.known_faces[safe_name]]
+                self.known_faces[safe_name].append(embedding)
+                logger.info(f"Added embedding #{len(self.known_faces[safe_name])} for: {safe_name}")
+            else:
+                # New person - store as list for consistency
+                self.known_faces[safe_name] = [embedding]
+                logger.info(f"Created new face entry for: {safe_name}")
+            
+            # Save image (overwrite or numbered?)
+            num_existing = len([f for f in os.listdir(self.known_faces_dir) if f.startswith(safe_name)])
+            filename = f"{safe_name}_{num_existing}.jpg"
+            path = os.path.join(self.known_faces_dir, filename)
             cv2.imwrite(path, face_image)
             logger.info(f"Saved face image: {path}")
             
-            # Generate and save embedding
-            embedding = self._get_face_embedding(face_image)
-            self.known_faces[safe_name] = embedding
             self._save_embeddings()
-            
-            logger.info(f"Saved embedding for: {safe_name}")
             return True
+            
         except Exception as e:
             logger.error(f"Error saving face: {e}")
             return False

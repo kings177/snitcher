@@ -53,13 +53,28 @@ def main():
             raw_frame = frame.copy()
 
             has_unknown = False
-            for name, (top, right, bottom, left) in results:
-                color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+            for result in results:
+                # Handle both formats: (name, location) or (name, location, category, confidence)
+                if len(result) >= 3:
+                    name, (top, right, bottom, left), category = result[:3]
+                    
+                    # Color based on category
+                    if category == "known":
+                        color = (0, 255, 0)  # Green
+                    elif category == "maybe":
+                        color = (0, 255, 255)  # Yellow
+                    else:
+                        color = (0, 0, 255)  # Red
+                        has_unknown = True
+                else:
+                    # Old format compatibility
+                    name, (top, right, bottom, left) = result[:2]
+                    color = (0, 255, 0) if "Unknown" not in name else (0, 0, 255)
+                    if "Unknown" in name:
+                        has_unknown = True
+                
                 cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
                 cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-                
-                if name == "Unknown":
-                    has_unknown = True
 
             web_stream.update_frame(frame, raw_frame, results)
 

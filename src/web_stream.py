@@ -51,12 +51,20 @@ class WebStreamer:
 
     def get_status(self):
         with self.lock:
-            # Check if there is an unknown face
+            # Check if there is an unknown or uncertain face
             unknown_found = False
-            for name, _ in self.current_results:
-                if name == "Unknown":
-                    unknown_found = True
-                    break
+            for result in self.current_results:
+                # Handle both formats
+                if len(result) >= 3:
+                    name, _, category = result[:3]
+                    if category in ["unknown", "maybe"]:
+                        unknown_found = True
+                        break
+                else:
+                    name = result[0]
+                    if "Unknown" in name or "Maybe" in name:
+                        unknown_found = True
+                        break
             return jsonify({'unknown_found': unknown_found})
 
     def save_face(self):
@@ -65,36 +73,57 @@ class WebStreamer:
 
         data = request.json
         name = data.get('name')
+        num_samples = data.get('num_samples', 10)
+        
         if not name:
             return jsonify({'error': 'Name is required'}), 400
 
-        with self.lock:
-            if self.raw_frame is None:
-                 return jsonify({'error': 'No frame available'}), 400
+        # Collect multiple samples
+        samples_collected = 0
+        import time
+        
+        for i in range(num_samples):
+            with self.lock:
+                if self.raw_frame is None:
+                    continue
+                
+                # Find unknown or low-confidence face
+                target_location = None
+                for result in self.current_results:
+                    # Handle both old format (name, location) and new format (name, location, category, conf)
+                    if len(result) >= 3:
+                        fname, location, category = result[:3]
+                        if "Unknown" in fname or category in ["unknown", "maybe"]:
+                            target_location = location
+                            break
+                    else:
+                        fname, location = result[:2]
+                        if "Unknown" in fname:
+                            target_location = location
+                            break
+                
+                if not target_location:
+                    continue
+                
+                # Save this sample
+                success = self.face_system.save_face(self.raw_frame, target_location, name)
+                if success:
+                    samples_collected += 1
             
-            # Find the first unknown face to save
-            target_location = None
-            for fname, location in self.current_results:
-                if fname == "Unknown":
-                    target_location = location
-                    break
-            
-            if not target_location:
-                 return jsonify({'error': 'No unknown face detected to save'}), 404
-            
-            # Use raw frame to save clean image
-            success = self.face_system.save_face(self.raw_frame, target_location, name)
-
-        if success:
-            return jsonify({'success': True, 'message': f'Saved face for {name}'})
+            # Wait between samples to get different angles
+            if i < num_samples - 1:
+                time.sleep(0.3)
+        
+        if samples_collected > 0:
+            return jsonify({'success': True, 'message': f'Saved {samples_collected} samples for {name}'})
         else:
-            return jsonify({'error': 'Failed to save face'}), 500
+            return jsonify({'error': 'Failed to collect samples'}), 500
 
     def index(self):
         return render_template_string("""
             <html>
             <head>
-                <title>Camera Live View</title>
+                <title>Camera View</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
                     body { background: #111; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
@@ -133,10 +162,17 @@ class WebStreamer:
                             return;
                         }
                         
+                        const btn = document.getElementById('saveBtn');
+                        const status = document.getElementById('statusText');
+                        
+                        btn.disabled = true;
+                        status.innerText = "Capturing samples... Please move your head slightly.";
+                        status.className = "status";
+                        
                         fetch('/api/save_face', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ name: name })
+                            body: JSON.stringify({ name: name, num_samples: 10 })
                         })
                         .then(response => response.json())
                         .then(data => {
@@ -146,6 +182,12 @@ class WebStreamer:
                             } else {
                                 alert("Error: " + data.error);
                             }
+                        })
+                        .catch(err => {
+                            alert("Error: " + err);
+                        })
+                        .finally(() => {
+                            btn.disabled = false;
                         });
                     }
 
@@ -159,11 +201,18 @@ class WebStreamer:
                     
                     <div class="controls">
                         <h3>Add New Face</h3>
-                        <p>Wait for a RED box (Unknown) to appear, then enter a name and click Save.</p>
+                        <p>Wait for a RED box (Unknown) or YELLOW box (Maybe) to appear.</p>
+                        <p><small>The system will capture 10 samples over 3 seconds - move your head slightly for better accuracy.</small></p>
                         <div id="statusText" class="status">Waiting...</div>
                         <br>
                         <input type="text" id="nameInput" placeholder="Enter Name">
-                        <button id="saveBtn" onclick="saveFace()" disabled>Save Detected Face</button>
+                        <button id="saveBtn" onclick="saveFace()" disabled>Capture & Save Face</button>
+                    </div>
+                    <div style="margin-top: 10px; font-size: 12px; opacity: 0.7;">
+                        <p><strong>Color Guide:</strong></p>
+                        <p>🟢 Green = Recognized</p>
+                        <p>🟡 Yellow = Uncertain match</p>
+                        <p>🔴 Red = Unknown</p>
                     </div>
                 </div>
             </body>
